@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SCiPNET | Foundation Direct Access Terminal</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+  
+  <style>
+    :root { --p-color: #f97316; }
+    body { background-color: #000; color: var(--p-color); font-family: 'Courier New', Courier, monospace; overflow: hidden; }
+    .font-display { font-family: 'VT323', monospace; }
+    
+    /* Layout Logic */
+    .view-content { display: none; height: 100%; width: 100%; flex-direction: column; }
+    .view-content.active { display: flex; }
+
+    /* Visual Effects */
+    .text-glow { text-shadow: 0 0 8px rgba(249, 115, 22, 0.5); }
+    .scanline {
+      width: 100%; height: 100%; position: absolute; top: 0; left: 0;
+      background: linear-gradient(to bottom, rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+      background-size: 100% 2px, 3px 100%; pointer-events: none; z-index: 100;
+    }
+    
+    .terminal-cursor { animation: blink 1s step-end infinite; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: #333; }
+    input::placeholder { color: #444; }
+  </style>
+</head>
+<body class="h-screen flex flex-col">
+  <div class="scanline"></div>
+
+  <header class="flex items-center p-3 border-b border-neutral-800 bg-black z-50">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 border border-orange-500/50 flex items-center justify-center">
+        <i data-lucide="shield" class="w-5 h-5"></i>
+      </div>
+      <div>
+        <h1 class="font-display text-xl font-bold tracking-widest text-glow">SCiPNET v4.0</h1>
+      </div>
+    </div>
+    <div class="ml-auto flex items-center gap-4 text-[10px] text-neutral-500">
+      <div id="clock">00:00:00</div>
+      <div class="text-orange-500/50">NODE_SITE_45</div>
+    </div>
+  </header>
+
+  <div class="flex flex-1 overflow-hidden">
+    
+    <aside class="hidden md:flex w-64 flex-col border-r border-neutral-800 bg-black p-4 space-y-6">
+      <div class="space-y-1">
+        <label class="text-[9px] text-neutral-500 uppercase tracking-tighter">Auth_Identity</label>
+        <div id="user-display" class="text-sm font-bold text-neutral-400">UNAUTHORIZED_GUEST</div>
+        <div id="clearance-tag" class="text-[10px] px-2 py-0.5 bg-neutral-900 border border-neutral-700 w-fit">LVL_0</div>
+      </div>
+
+      <div class="space-y-3">
+        <label class="text-[9px] text-neutral-500 uppercase">Live_Telemetry</label>
+        <div class="space-y-2">
+          <div class="flex justify-between text-[9px]"><span>HUME_STABILITY</span><span id="hume-txt">1.00</span></div>
+          <div class="h-1 bg-neutral-900 w-full"><div id="hume-bar" class="h-full bg-orange-500 w-1/2 transition-all duration-500"></div></div>
+          
+          <div class="flex justify-between text-[9px]"><span>NET_LOAD</span><span id="cpu-txt">12%</span></div>
+          <div class="h-1 bg-neutral-900 w-full"><div id="cpu-bar" class="h-full bg-orange-500 w-1/5 transition-all duration-300"></div></div>
+        </div>
+      </div>
+
+      <div class="flex-1 flex flex-col min-h-0">
+        <label class="text-[9px] text-neutral-500 uppercase mb-2">System_Logs</label>
+        <div id="log-container" class="text-[9px] text-neutral-600 space-y-1 overflow-hidden opacity-50"></div>
+      </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col bg-neutral-950 relative">
+      
+      <nav class="flex border-b border-neutral-800 bg-black overflow-x-auto">
+        <button onclick="app.switchView('terminal')" class="nav-btn px-6 py-3 text-[10px] font-bold border-b-2 border-orange-500 text-orange-500 bg-orange-500/5">TERMINAL</button>
+        <button onclick="app.switchView('database')" class="nav-btn px-6 py-3 text-[10px] font-bold border-b-2 border-transparent text-neutral-500">DATABASE</button>
+        <button onclick="app.switchView('contain')" class="nav-btn px-6 py-3 text-[10px] font-bold border-b-2 border-transparent text-neutral-500">CONTAINMENT</button>
+        <button onclick="app.switchView('labs')" class="nav-btn px-6 py-3 text-[10px] font-bold border-b-2 border-transparent text-neutral-500">LAB_SENSORS</button>
+      </nav>
+
+      <div class="flex-1 relative overflow-hidden">
+        
+        <div id="view-terminal" class="view-content active p-4">
+          <div id="term-output" class="flex-1 overflow-y-auto text-xs space-y-1 font-mono mb-4 scroll-smooth"></div>
+          <div class="flex items-center gap-2 border-t border-neutral-800 pt-3">
+            <span class="text-orange-500 text-xs">SCiPNET:\></span>
+            <input type="text" id="term-input" class="flex-1 bg-transparent outline-none text-white text-xs" autocomplete="off" autofocus>
+            <span class="w-1.5 h-3.5 bg-orange-500 terminal-cursor"></span>
+          </div>
+        </div>
+
+        <div id="view-database" class="view-content p-6">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="font-display text-2xl text-glow uppercase">Classified_Archives</h2>
+            <input type="text" id="db-search" placeholder="Filter by ID..." class="bg-black border border-neutral-800 px-3 py-1 text-[10px] outline-none focus:border-orange-500 w-48">
+          </div>
+          <div id="db-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto pr-2">
+            </div>
+        </div>
+
+        <div id="view-contain" class="view-content p-6 flex items-center justify-center">
+          <div class="max-w-md w-full border border-neutral-800 p-8 text-center space-y-4">
+            <i data-lucide="activity" class="w-10 h-10 mx-auto opacity-20"></i>
+            <h3 class="font-display text-xl uppercase">Sector-45 Status</h3>
+            <div class="grid grid-cols-2 gap-4 text-[10px]">
+              <div class="p-3 bg-neutral-900 border border-neutral-800">
+                <div class="text-neutral-500">CELL_173</div>
+                <div class="text-green-500">STABLE</div>
+              </div>
+              <div class="p-3 bg-neutral-900 border border-neutral-800">
+                <div class="text-neutral-500">CELL_096</div>
+                <div class="text-green-500">STABLE</div>
+              </div>
+            </div>
+            <p class="text-[9px] text-neutral-500">All automated suppression systems are active. No breaches detected in the last 72 hours.</p>
+          </div>
+        </div>
+
+        <div id="view-labs" class="view-content p-6">
+          <h2 class="font-display text-2xl mb-8 uppercase">Research_Diagnostics</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div class="p-4 border border-neutral-800 bg-neutral-900/30">
+              <div class="text-[9px] text-neutral-500 mb-2 uppercase">Reality_Anchor_Load</div>
+              <div class="text-3xl font-display">88.4%</div>
+            </div>
+            <div class="p-4 border border-neutral-800 bg-neutral-900/30">
+              <div class="text-[9px] text-neutral-500 mb-2 uppercase">Kant_Counter_Reading</div>
+              <div class="text-3xl font-display text-orange-500">1.02<span class="text-xs">Hm</span></div>
+            </div>
+            <div class="p-4 border border-neutral-800 bg-neutral-900/30">
+              <div class="text-[9px] text-neutral-500 mb-2 uppercase">Memetic_Shielding</div>
+              <div class="text-3xl font-display text-green-500">ACTIVE</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // --- Application State ---
+    const app = {
+      user: "UNAUTHORIZED_GUEST",
+      clearance: 0,
+      db: [
+        { id: "173", name: "The Sculpture", class: "Euclid", desc: "Constructed from concrete and rebar. Hostile." },
+        { id: "096", name: "The Shy Guy", class: "Euclid", desc: "Humanoid. Avoid facial contact at all costs." },
+        { id: "682", name: "Hard-to-Destroy Reptile", class: "Keter", desc: "Large, vaguely reptile-like creature. Regenerative." },
+        { id: "914", name: "The Clockworks", class: "Safe", desc: "Large clockwork device. Refines items." }
+      ],
+
+      init() {
+        lucide.createIcons();
+        this.bindEvents();
+        this.startLoops();
+        this.writeTerm("SCiPNET v4.0.2 BOOT COMPLETE...");
+        this.writeTerm("SECURE. CONTAIN. PROTECT.");
+        this.renderDatabase();
+        console.log("App Initialized");
+      },
+
+      bindEvents() {
+        // Terminal Input
+        document.getElementById('term-input').addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            const input = e.target.value;
+            e.target.value = '';
+            this.handleCommand(input);
+          }
+        });
+
+        // Search Input
+        document.getElementById('db-search').addEventListener('input', (e) => {
+          this.renderDatabase(e.target.value);
+        });
+      },
+
+      switchView(viewId) {
+        // 1. Reset Buttons
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+          btn.classList.remove('border-orange-500', 'text-orange-500', 'bg-orange-500/5');
+          btn.classList.add('border-transparent', 'text-neutral-500');
+        });
+        
+        // 2. Find clicked button (even if called from script)
+        const activeBtn = Array.from(document.querySelectorAll('.nav-btn')).find(b => b.innerText.toLowerCase().includes(viewId.substring(0,3)));
+        if (activeBtn) {
+          activeBtn.classList.add('border-orange-500', 'text-orange-500', 'bg-orange-500/5');
+          activeBtn.classList.remove('border-transparent', 'text-neutral-500');
+        }
+
+        // 3. Switch Views
+        document.querySelectorAll('.view-content').forEach(v => v.classList.remove('active'));
+        const target = document.getElementById('view-' + viewId);
+        if (target) target.classList.add('active');
+        
+        this.addLog("VIEW_SWAP_" + viewId.toUpperCase());
+      },
+
+      writeTerm(text) {
+        const out = document.getElementById('term-output');
+        const line = document.createElement('div');
+        line.innerHTML = `<span class="opacity-50">[${new Date().toLocaleTimeString()}]</span> ${text}`;
+        out.appendChild(line);
+        out.scrollTop = out.scrollHeight;
+      },
+
+      handleCommand(raw) {
+        const cmd = raw.trim().toLowerCase();
+        this.writeTerm(`<span class="text-orange-500">SCiPNET:\></span> ${raw}`);
+        
+        if (cmd === 'help') {
+          this.writeTerm("COMMANDS: [login, logout, clear, access {id}, status]");
+        } else if (cmd === 'login') {
+          this.user = "O5_ADMINISTRATOR";
+          this.clearance = 4;
+          this.updateAuthUI();
+          this.writeTerm("<span class='text-green-500'>AUTH_SUCCESS: CLEARANCE LVL 4 GRANTED.</span>");
+        } else if (cmd === 'logout') {
+          this.user = "UNAUTHORIZED_GUEST";
+          this.clearance = 0;
+          this.updateAuthUI();
+          this.writeTerm("SESSION TERMINATED.");
+        } else if (cmd === 'clear') {
+          document.getElementById('term-output').innerHTML = '';
+        } else if (cmd.startsWith('access')) {
+          const id = cmd.split(' ')[1];
+          const item = this.db.find(s => s.id === id);
+          if (item) {
+            this.writeTerm(`<span class="text-orange-400 font-bold">SCP-${item.id} - ${item.name}</span>`);
+            this.writeTerm(`CLASS: ${item.class} | STATUS: CONTAINED`);
+            this.writeTerm(`DESC: ${item.desc}`);
+          } else {
+            this.writeTerm("<span class='text-red-500'>ERROR: FILE_NOT_FOUND</span>");
+          }
+        } else {
+          this.writeTerm(`UNKNOWN_COMMAND: ${cmd}`);
+        }
+      },
+
+      updateAuthUI() {
+        document.getElementById('user-display').innerText = this.user;
+        document.getElementById('clearance-tag').innerText = "LVL_" + this.clearance;
+        document.getElementById('clearance-tag').className = this.clearance > 0 ? 
+          "text-[10px] px-2 py-0.5 bg-green-900/20 border border-green-500 text-green-500 w-fit" :
+          "text-[10px] px-2 py-0.5 bg-neutral-900 border border-neutral-700 w-fit";
+      },
+
+      renderDatabase(filter = "") {
+        const grid = document.getElementById('db-grid');
+        grid.innerHTML = this.db
+          .filter(s => s.id.includes(filter) || s.name.toLowerCase().includes(filter.toLowerCase()))
+          .map(s => `
+            <div class="border border-neutral-800 p-4 bg-neutral-900/30 hover:border-orange-500/50 transition-colors cursor-default">
+              <div class="flex justify-between items-start mb-2">
+                <span class="text-orange-500 font-bold text-xs uppercase">SCP-${s.id}</span>
+                <span class="text-[9px] border border-neutral-700 px-1 text-neutral-500">${s.class}</span>
+              </div>
+              <div class="text-sm text-neutral-200">${s.name}</div>
+            </div>
+          `).join('');
+      },
+
+      addLog(msg) {
+        const container = document.getElementById('log-container');
+        const entry = document.createElement('div');
+        entry.innerText = `> ${msg}_${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+        container.prepend(entry);
+        if (container.childNodes.length > 12) container.removeChild(container.lastChild);
+      },
+
+      startLoops() {
+        // Clock
+        setInterval(() => {
+          document.getElementById('clock').innerText = new Date().toLocaleTimeString();
+        }, 1000);
+
+        // Stats
+        setInterval(() => {
+          const hume = (0.98 + (Math.random() * 0.04)).toFixed(3);
+          const cpu = Math.floor(Math.random() * 30) + 5;
+          document.getElementById('hume-txt').innerText = hume;
+          document.getElementById('hume-bar').style.width = (hume * 50) + "%";
+          document.getElementById('cpu-txt').innerText = cpu + "%";
+          document.getElementById('cpu-bar').style.width = cpu + "%";
+        }, 3000);
+      }
+    };
+
+    // Boot
+    window.onload = () => app.init();
+  </script>
+</body>
+</html>
