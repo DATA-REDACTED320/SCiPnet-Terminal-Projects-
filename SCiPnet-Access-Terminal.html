@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SCiPNET | Direct Access Terminal | Immersive SCP Foundation System</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#f97316',   /* Orange */
+            accent: '#fb923c',
+            success: '#22c55e',   /* Green */
+            warning: '#eab308',   /* Yellow */
+            danger: '#ef4444',    /* Red */
+            dark: '#0a0a0a',      
+            border: '#333333'
+          },
+          fontFamily: {
+            display: ['VT323', 'monospace'],
+            mono: ['Courier New', 'Courier', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #000;
+      color: #f97316;
+      scrollbar-width: thin;
+      scrollbar-color: #f97316 #000;
+    }
+    .text-glow { text-shadow: 0 0 10px rgba(249, 115, 22, 0.6); }
+    .text-glow-success { text-shadow: 0 0 10px rgba(34, 197, 94, 0.6); }
+    .text-glow-danger { text-shadow: 0 0 10px rgba(239, 68, 68, 0.6); }
+    
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #000; }
+    ::-webkit-scrollbar-thumb { background: #f97316; }
+
+    .terminal-output { white-space: pre-wrap; word-break: break-word; }
+    input:focus { outline: none; }
+    .terminal-cursor { animation: blink 1s step-end infinite; }
+    
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    .animate-pulse-fast { animation: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+  </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden selection:bg-primary selection:text-black font-mono">
+
+  <header class="flex items-center p-3 border-b border-border bg-black/90 backdrop-blur-sm z-50">
+    <div class="flex items-center gap-3">
+      <div class="relative w-12 h-12 flex items-center justify-center">
+        <img src="https://scipnet.io/assets/scp-logo-3sh5PKVZ.png" alt="SCP Logo" class="w-full h-full object-contain opacity-80" onerror="this.style.display='none'">
+      </div>
+      <div>
+        <h1 class="font-display text-2xl font-bold tracking-wider text-glow">SCiPNET.IO</h1>
+        <p class="text-[10px] text-gray-500 tracking-widest">SCP FOUNDATION / <span class="text-white">TERMINAL</span></p>
+      </div>
+    </div>
+    <div class="ml-auto flex items-center gap-4">
+      <div class="flex items-center gap-2">
+        <div class="w-2 h-2 rounded-full bg-success animate-pulse-fast"></div>
+        <span class="text-xs text-gray-500 tracking-widest hidden sm:block">SECURE CHANNEL</span>
+      </div>
+      <button class="flex items-center gap-2 px-3 py-1.5 border border-primary/50 hover:border-primary hover:bg-primary/10 transition-all text-sm rounded" onclick="executeCommand('login')">
+        <i data-lucide="user" class="w-4 h-4"></i>
+        <span class="hidden sm:inline">LOGIN</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="relative w-full h-24 sm:h-32 bg-black flex items-center px-6 border-b border-border overflow-hidden">
+    <div class="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent z-10"></div>
+    <div class="relative z-20">
+      <h2 class="font-display text-3xl sm:text-4xl font-bold tracking-wider text-glow">SECURE. CONTAIN. PROTECT.</h2>
+      <p class="text-xs sm:text-sm text-gray-400 tracking-widest mt-1">SCP FOUNDATION / SCiPNET DATABASE TERMINAL</p>
+    </div>
+  </div>
+
+  <div class="flex flex-1 overflow-hidden">
+    <main class="flex-1 flex flex-col min-w-0 bg-dark relative">
+      <nav class="flex items-center border-b border-border overflow-x-auto whitespace-nowrap bg-black text-xs text-gray-500">
+        <button class="px-4 py-3 flex items-center gap-2 text-primary border-b-2 border-primary bg-primary/5"><i data-lucide="terminal" class="w-4 h-4"></i> TERMINAL</button>
+        <button class="px-4 py-3 flex items-center gap-2 hover:text-gray-300 transition-colors"><i data-lucide="database" class="w-4 h-4"></i> DATABASE</button>
+        <button class="px-4 py-3 flex items-center gap-2 hover:text-gray-300 transition-colors"><i data-lucide="box" class="w-4 h-4"></i> CONTAIN</button>
+        <button class="px-4 py-3 flex items-center gap-2 hover:text-gray-300 transition-colors"><i data-lucide="flask-conical" class="w-4 h-4"></i> LAB</button>
+        <button class="px-4 py-3 flex items-center gap-2 hover:text-gray-300 transition-colors"><i data-lucide="archive" class="w-4 h-4"></i> PROTOCOLS</button>
+        <button class="px-4 py-3 flex items-center gap-2 hover:text-gray-300 transition-colors"><i data-lucide="triangle-alert" class="w-4 h-4"></i> INCIDENTS</button>
+      </nav>
+      
+      <div id="terminal-wrapper" class="flex-1 overflow-y-auto p-4 text-xs sm:text-sm" onclick="document.getElementById('cmd-input').focus()">
+        <div id="output" class="terminal-output text-primary/80 pb-4"></div>
+      </div>
+      
+      <div class="border-t border-border p-2 bg-black sticky bottom-0 z-30 flex flex-col">
+        <div class="flex items-center justify-between mb-1 px-2">
+          <span class="text-[10px] text-primary/80 tracking-widest">COMMAND INPUT</span>
+          <span id="clearance-badge" class="text-[10px] px-1.5 py-0.5 rounded border border-border bg-gray-900 text-gray-400">L0 • PUBLIC</span>
+        </div>
+        <div class="flex items-center gap-1 font-mono text-sm px-2 w-full">
+          <span id="prompt-user" class="text-accent">RESEARCHER</span><span class="text-gray-500">@</span><span class="text-success">scipnet</span><span class="text-gray-500">:~$ </span>
+          <input type="text" id="cmd-input" class="flex-1 bg-transparent border-none text-white focus:outline-none w-full ml-1" autocomplete="off" spellcheck="false" autofocus>
+          <span class="w-2 h-4 bg-primary terminal-cursor"></span>
+        </div>
+      </div>
+    </main>
+
+    <aside class="hidden lg:flex w-80 flex-col border-l border-border bg-black overflow-y-auto">
+      <div class="p-4 space-y-4">
+        <div class="border border-border p-3 bg-gray-900/50">
+          <div class="text-xs text-gray-500 tracking-widest mb-1">CLEARANCE <span id="sb-clearance">0</span></div>
+          <div id="sb-status" class="text-xl font-display font-bold tracking-wider text-gray-500">UNAUTHORIZED</div>
+          <div id="sb-user" class="text-sm text-gray-400 mt-1 uppercase tracking-wide">RESEARCHER</div>
+        </div>
+        
+        <div class="border border-border p-3 bg-gray-900/50 space-y-2">
+          <div class="flex items-center gap-2 text-xs text-gray-500">
+            <i data-lucide="building" class="w-3 h-3"></i> <span class="tracking-widest">CURRENT FACILITY</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded bg-primary/20 flex items-center justify-center text-primary"><i data-lucide="building" class="w-4 h-4"></i></div>
+            <div>
+              <div class="font-display text-sm tracking-wider">Site-45</div>
+              <div class="text-[10px] px-1.5 border border-success/30 bg-success/10 text-success rounded-full flex items-center gap-1 w-fit">
+                <i data-lucide="shield" class="w-3 h-3"></i> OPERATIONAL
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="border border-border p-3 bg-gray-900/50">
+          <div class="flex items-center gap-2 text-xs text-gray-500 mb-2">
+            <i data-lucide="radio" class="w-3 h-3"></i> <span class="tracking-widest">SYSTEM STATUS</span>
+          </div>
+          <div class="space-y-2">
+            <div>
+              <div class="flex justify-between text-xs mb-1"><span class="text-gray-400">CPU_USAGE</span><span class="text-warning">93%</span></div>
+              <div class="h-1 bg-gray-800 rounded-full"><div class="h-full bg-warning" style="width: 93%;"></div></div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs mb-1"><span class="text-gray-400">REALITY_ANCHORS</span><span class="text-white">64%</span></div>
+              <div class="h-1 bg-gray-800 rounded-full"><div class="h-full bg-accent" style="width: 64%;"></div></div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs mb-1"><span class="text-gray-400">CONTAINMENT</span><span class="text-success">100%</span></div>
+              <div class="h-1 bg-gray-800 rounded-full"><div class="h-full bg-success" style="width: 100%;"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="border-t border-border flex flex-col flex-1 min-h-[250px]">
+        <div class="border-b border-border px-4 py-2">
+          <span class="text-xs text-gray-500 tracking-widest">EVENT LOG</span>
+        </div>
+        <div id="event-log" class="p-3 space-y-2 overflow-y-auto flex-1">
+          </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // App State
+    let state = {
+      user: 'RESEARCHER',
+      clearance: 0,
+      isPromptingPassword: false
+    };
+
+    // DOM Elements
+    const outputEl = document.getElementById('output');
+    const inputEl = document.getElementById('cmd-input');
+    const wrapperEl = document.getElementById('terminal-wrapper');
+    const logEl = document.getElementById('event-log');
+
+    // Boot ASCII Art
+    const asciiArt = `
+███████╗ ██████╗██████╗ ██████╗   ██╗███████╗████████╗
+██╔════╝██╔════╝██╔══██╗██╔══██╗  ██║██╔════╝╚══██╔══╝
+███████╗██║     ██████╔╝██████╔╝  ██║█████╗     ██║   
+╚════██║██║     ██╔═══╝ ██╔═══╝   ██║██╔══╝     ██║   
+███████║╚██████╗██║     ██║       ██║███████╗   ██║   
+╚══════╝ ╚═════╝╚═╝     ╚═╝       ╚═╝╚══════╝   ╚═╝   `;
+
+    // Initialize Terminal
+    function initTerminal() {
+      const now = new Date();
+      let header = `<div class="text-accent text-[8px] sm:text-xs leading-none whitespace-pre">${asciiArt}</div>`;
+      header += `\n-------------------------- SCiPNET TERMINAL v4.2.0 --------------------------\n`;
+      header += `\n          SECURE, CONTAIN, PROTECT\n          SCP FOUNDATION DATABASE NETWORK\n\n`;
+      header += `Access Time: ${now.toLocaleDateString('en-GB')}, ${now.toLocaleTimeString('en-GB')}\n`;
+      header += `User: ${state.user} | Clearance Level: ${state.clearance} ${state.clearance > 0 ? '(AUTHORIZED)' : '(UNAUTHORIZED)'}\n\n`;
+      
+      if (state.clearance === 0) {
+        header += `<span class="text-warning">⚠️  WARNING: UNAUTHORIZED ACCESS LEVEL ⚠️</span>\n`;
+        header += `Your current clearance (Level 0) restricts access to classified materials.\n`;
+        header += `Authentication required for database access. Use <span class="text-white">LOGIN</span> to authenticate.\n\n`;
+      } else {
+        header += `<span class="text-success text-glow-success">System accessed. Welcome back, Administrator.</span>\n\n`;
+      }
+      
+      header += `Enter 'help' for available commands or 'access [id]' to quickly access SCP files.`;
+      
+      outputEl.innerHTML = '';
+      printLine(header);
+      
+      addLog('SYSTEM BOOT SEQUENCE INITIATED');
+      addLog('DATABASE CONNECTION ESTABLISHED', 'success');
+      addLog('TERMINAL READY', 'success');
+    }
+
+    // Logging Function
+    function addLog(message, type = 'info') {
+      const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      let colorClass = 'text-accent';
+      let icon = 'info';
+
+      if (type === 'success') { colorClass = 'text-success'; icon = 'check-circle'; }
+      if (type === 'warning') { colorClass = 'text-warning'; icon = 'alert-triangle'; }
+      if (type === 'danger') { colorClass = 'text-danger'; icon = 'shield-alert'; }
+
+      const el = document.createElement('div');
+      el.className = 'flex items-start gap-2 text-xs py-1 animate-[pulse_0.5s_ease-out]';
+      el.innerHTML = `
+        <i data-lucide="${icon}" class="w-3 h-3 ${colorClass} mt-0.5"></i>
+        <div class="flex-1 min-w-0">
+          <span class="text-gray-500">${time} - </span>
+          <span class="text-gray-300 break-words">${message}</span>
+        </div>
+      `;
+      logEl.prepend(el);
+      lucide.createIcons({ root: el });
+    }
+
+    // Terminal Print
+    function printLine(text, css = '') {
+      const line = document.createElement('div');
+      if (css) line.className = css;
+      line.innerHTML = text;
+      outputEl.appendChild(line);
+      wrapperEl.scrollTop = wrapperEl.scrollHeight;
+    }
+
+    function executeCommand(cmd) {
+      const trimmed = cmd.trim();
+      
+      // Echo command
+      if (state.isPromptingPassword) {
+        printLine(`<span class="text-gray-500">${state.user}@scipnet:~$</span> <span class="text-gray-400">********</span>`);
+      } else {
+        printLine(`<span class="text-gray-500">${state.user}@scipnet:~$</span> <span class="text-white">${trimmed}</span>`);
+      }
+
+      if (!trimmed) return;
+
+      // Handle Password state
+      if (state.isPromptingPassword) {
+        state.isPromptingPassword = false;
+        inputEl.type = "text";
+        
+        if (trimmed === 'admin' || trimmed === 'O5' || trimmed.length >= 4) {
+          state.clearance = 4;
+          state.user = 'O5-COMMAND';
+          updateUI();
+          printLine('Verifying credentials...', 'text-gray-400');
+          setTimeout(() => {
+            printLine('Identity Confirmed. Clearance Level 4 Granted.', 'text-success text-glow-success');
+            addLog('ELEVATED ACCESS GRANTED', 'success');
+          }, 800);
+        } else {
+          printLine('Access Denied. Invalid Credentials.', 'text-danger text-glow-danger');
+          addLog('FAILED AUTHENTICATION ATTEMPT', 'danger');
+        }
+        return;
+      }
+
+      // Handle standard commands
+      const args = trimmed.split(' ');
+      const main = args[0].toLowerCase();
+
+      switch(main) {
+        case 'help':
+          printLine(`Available commands:
+  <span class="text-white">access [id]</span> - Access database file (e.g., access 087)
+  <span class="text-white">login</span>       - Authenticate user for higher clearance
+  <span class="text-white">logout</span>      - Revoke clearance and reset terminal
+  <span class="text-white">status</span>      - Display current facility telemetry
+  <span class="text-white">clear</span>       - Clear terminal output`);
+          break;
+
+        case 'clear':
+          outputEl.innerHTML = '';
+          break;
+
+        case 'status':
+          printLine(`FACILITY STATUS: SITE-45
+--------------------------------
+THREAT LEVEL     : <span class="text-success">NOMINAL</span>
+HUME METER       : STABLE (0.98 Ht)
+REALITY ANCHORS  : ONLINE
+NETWORK SECURITY : AES-256-GCM
+ACTIVE SCPs      : 94`);
+          addLog('SYSTEM STATUS CHECKED', 'info');
+          break;
+
+        case 'login':
+          if (state.clearance >= 4) {
+            printLine('You are already authenticated with maximum clearance.', 'text-warning');
+          } else {
+            state.isPromptingPassword = true;
+            inputEl.type = "password";
+            printLine('Enter Administrator Password:');
+          }
+          break;
+
+        case 'logout':
+          state.clearance = 0;
+          state.user = 'RESEARCHER';
+          updateUI();
+          printLine('Connection terminated. Session cleared.', 'text-warning');
+          addLog('USER LOGGED OUT', 'warning');
+          setTimeout(initTerminal, 1000);
+          break;
+
+        case 'access':
+          if (!args[1]) {
+            printLine('Usage: access [SCP-ID]');
+          } else {
+            const scpId = args[1];
+            if (state.clearance < 2 && scpId !== '173') { // Hardcode 173 as accessible for demo
+              printLine(`Accessing SCP-${scpId}... ERROR: CLEARANCE LEVEL ${state.clearance} INSUFFICIENT.`, 'text-danger text-glow-danger');
+              addLog(`UNAUTHORIZED ACCESS REJECTED: SCP-${scpId}`, 'danger');
+            } else {
+              printLine(`Fetching file SCP-${scpId}...`, 'text-gray-400');
+              setTimeout(() => {
+                printLine(`
+<span class="text-white font-bold">Item #:</span> SCP-${scpId}
+<span class="text-white font-bold">Object Class:</span> Euclid / Keter
+<span class="text-white font-bold">Special Containment Procedures:</span>
+[DATA EXPUNGED] All personnel entering the containment area must follow Protocol 4-Beta.
+
+<span class="text-white font-bold">Description:</span>
+The object exhibits highly anomalous properties when not under direct visual observation.
+Further details are restricted to Level 4 personnel and above.
+`);
+                addLog(`DATABASE ACCESSED: SCP-${scpId}`, 'success');
+              }, 600);
+            }
+          }
+          break;
+
+        default:
+          printLine(`Command not found: ${main}. Type 'help' for a list of commands.`, 'text-gray-400');
+      }
+    }
+
+    function updateUI() {
+      document.getElementById('prompt-user').innerText = state.user;
+      document.getElementById('sb-user').innerText = state.user;
+      document.getElementById('sb-clearance').innerText = state.clearance;
+      
+      if (state.clearance > 0) {
+        document.getElementById('sb-status').innerText = 'AUTHORIZED';
+        document.getElementById('sb-status').className = 'text-xl font-display font-bold tracking-wider text-success text-glow-success';
+        document.getElementById('clearance-badge').innerText = `L${state.clearance} • CLASSIFIED`;
+        document.getElementById('clearance-badge').className = 'text-[10px] px-1.5 py-0.5 rounded border border-success/50 bg-success/20 text-success';
+      } else {
+        document.getElementById('sb-status').innerText = 'UNAUTHORIZED';
+        document.getElementById('sb-status').className = 'text-xl font-display font-bold tracking-wider text-gray-500';
+        document.getElementById('clearance-badge').innerText = 'L0 • PUBLIC';
+        document.getElementById('clearance-badge').className = 'text-[10px] px-1.5 py-0.5 rounded border border-border bg-gray-900 text-gray-400';
+      }
+    }
+
+    // Listen for Enter key
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const val = inputEl.value;
+        inputEl.value = '';
+        executeCommand(val);
+      }
+    });
+
+    // Run init on load
+    window.onload = initTerminal;
+  </script>
+</body>
+</html>
