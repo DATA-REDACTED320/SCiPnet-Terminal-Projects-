@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SCiPNET | Integrated Foundation System</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#f97316', accent: '#fb923c', success: '#22c55e',
+            warning: '#eab308', danger: '#ef4444', dark: '#0a0a0a', border: '#333333'
+          },
+          fontFamily: { display: ['VT323', 'monospace'], mono: ['Courier New', 'monospace'] }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { background-color: #000; color: #f97316; font-family: 'Courier New', monospace; }
+    .text-glow { text-shadow: 0 0 10px rgba(249, 115, 22, 0.6); }
+    .view-content { display: none; }
+    .view-content.active { display: flex; flex-direction: column; height: 100%; }
+    .terminal-cursor { animation: blink 1s step-end infinite; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: #333; }
+    .scanline {
+      width: 100%; height: 2px; background: rgba(249, 115, 22, 0.1);
+      position: absolute; top: 0; left: 0; pointer-events: none;
+      animation: scan 4s linear infinite; z-index: 100;
+    }
+    @keyframes scan { from { top: 0; } to { top: 100%; } }
+  </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden selection:bg-primary selection:text-black">
+  <div class="scanline"></div>
+
+  <header class="flex items-center p-3 border-b border-border bg-black z-50">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 border border-primary/30 flex items-center justify-center rounded">
+        <i data-lucide="shield" class="text-primary w-6 h-6"></i>
+      </div>
+      <div>
+        <h1 class="font-display text-2xl font-bold tracking-wider text-glow">SCiPNET.IO</h1>
+        <p class="text-[10px] text-gray-500 tracking-widest uppercase">Intranet Terminal / Site-45</p>
+      </div>
+    </div>
+    <div class="ml-auto flex items-center gap-6">
+      <div class="hidden md:flex flex-col items-end">
+        <span class="text-[10px] text-gray-500">SYSTEM_TIME</span>
+        <span id="header-clock" class="text-xs font-mono">00:00:00</span>
+      </div>
+      <button onclick="logout()" class="px-3 py-1 border border-danger/50 text-danger text-xs hover:bg-danger/10 transition-all uppercase">Disconnect</button>
+    </div>
+  </header>
+
+  <div class="flex flex-1 overflow-hidden">
+    
+    <aside class="hidden lg:flex w-72 flex-col border-r border-border bg-black overflow-y-auto">
+      <div class="p-4 space-y-6">
+        <div class="border border-border p-3 bg-neutral-900/40">
+          <div class="text-[10px] text-gray-500 mb-2">AUTH_STATUS</div>
+          <div id="sb-status" class="text-lg font-display text-gray-500">UNAUTHORIZED</div>
+          <div id="sb-user" class="text-xs text-primary/60">GUEST_RESEARCHER</div>
+          <div class="mt-2 h-1 w-full bg-gray-800"><div id="auth-bar" class="h-full bg-gray-600 w-1/5 transition-all duration-1000"></div></div>
+        </div>
+
+        <div class="space-y-4">
+          <h3 class="text-[10px] text-gray-500 tracking-widest border-b border-border pb-1">SITE_TELEMETRY</h3>
+          <div class="space-y-3">
+            <div>
+              <div class="flex justify-between text-[10px] mb-1"><span>HUME_LEVEL</span><span id="hume-val">1.00</span></div>
+              <div class="h-1 bg-gray-900"><div id="hume-bar" class="h-full bg-primary transition-all duration-700" style="width: 50%"></div></div>
+            </div>
+            <div>
+              <div class="flex justify-between text-[10px] mb-1"><span>CPU_LOAD</span><span id="cpu-val">12%</span></div>
+              <div class="h-1 bg-gray-900"><div id="cpu-bar" class="h-full bg-primary transition-all duration-300" style="width: 12%"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex-1">
+          <h3 class="text-[10px] text-gray-500 tracking-widest border-b border-border pb-1 mb-2">LIVE_LOGS</h3>
+          <div id="side-logs" class="text-[9px] font-mono space-y-1 h-48 overflow-y-hidden opacity-70"></div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col min-w-0 bg-dark">
+      <nav class="flex border-b border-border bg-black text-[10px] tracking-tighter sm:tracking-widest">
+        <button onclick="switchView('terminal')" id="btn-terminal" class="nav-btn px-4 py-3 border-b-2 border-primary text-primary bg-primary/5">TERMINAL</button>
+        <button onclick="switchView('database')" id="btn-database" class="nav-btn px-4 py-3 border-b-2 border-transparent hover:text-white transition-colors">DATABASE</button>
+        <button onclick="switchView('contain')" id="btn-contain" class="nav-btn px-4 py-3 border-b-2 border-transparent hover:text-white transition-colors">CONTAINMENT</button>
+        <button onclick="switchView('lab')" id="btn-lab" class="nav-btn px-4 py-3 border-b-2 border-transparent hover:text-white transition-colors">LAB_STATS</button>
+      </nav>
+
+      <div class="flex-1 relative overflow-hidden">
+        
+        <div id="view-terminal" class="view-content active p-4">
+          <div id="terminal-output" class="flex-1 overflow-y-auto text-sm space-y-1 mb-4 scroll-smooth"></div>
+          <div class="flex items-center gap-2 border-t border-border pt-4">
+            <span class="text-accent text-xs">RES@SCIPNET:~$</span>
+            <input type="text" id="terminal-input" class="flex-1 bg-transparent outline-none text-white text-sm" autofocus autocomplete="off">
+            <span class="w-2 h-4 bg-primary terminal-cursor"></span>
+          </div>
+        </div>
+
+        <div id="view-database" class="view-content p-6">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-display text-glow">FOUNDATION_ARCHIVES</h2>
+            <input type="text" id="db-search" placeholder="Search by ID..." class="bg-black border border-border px-3 py-1 text-xs focus:border-primary outline-none">
+          </div>
+          <div id="db-list" class="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto">
+            </div>
+        </div>
+
+        <div id="view-contain" class="view-content p-6 flex items-center justify-center">
+          <div class="text-center space-y-4 max-w-md border border-dashed border-border p-10">
+            <i data-lucide="lock" class="w-12 h-12 mx-auto opacity-20"></i>
+            <h3 class="text-xl font-display">SECTOR-04 STATUS</h3>
+            <p class="text-xs text-gray-500">All containment cells currently report <span class="text-success">NOMINAL</span> stability levels. Internal sensors calibrated to Site-45 baseline.</p>
+            <div class="grid grid-cols-2 gap-2 text-[10px]">
+              <div class="p-2 bg-neutral-900 border border-border">CELL_A1: ACTIVE</div>
+              <div class="p-2 bg-neutral-900 border border-border">CELL_A2: ACTIVE</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="view-lab" class="view-content p-6">
+          <h2 class="text-2xl font-display mb-6">RESEARCH_DIAGNOSTICS</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+             <div class="border border-border p-4 bg-neutral-900/20">
+                <div class="text-[10px] text-gray-500 mb-4">REALITY_STABILITY</div>
+                <div class="flex items-end gap-2">
+                  <span class="text-4xl font-display text-white">99.4</span><span class="text-xs pb-1 text-primary">%</span>
+                </div>
+             </div>
+             <div class="border border-border p-4 bg-neutral-900/20">
+                <div class="text-[10px] text-gray-500 mb-4">MEMETIC_LOAD</div>
+                <div class="flex items-end gap-2">
+                  <span class="text-4xl font-display text-danger">0.02</span><span class="text-xs pb-1 text-primary">mμ</span>
+                </div>
+             </div>
+             <div class="border border-border p-4 bg-neutral-900/20">
+                <div class="text-[10px] text-gray-500 mb-4">ACTIVE_TESTS</div>
+                <div class="flex items-end gap-2">
+                  <span class="text-4xl font-display text-white">12</span><span class="text-xs pb-1 text-primary">RUNNING</span>
+                </div>
+             </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // --- Data ---
+    const scpDatabase = [
+      { id: "173", title: "The Sculpture", class: "Euclid", desc: "Constructed from concrete and rebar with traces of Krylon brand spray paint." },
+      { id: "096", title: "The 'Shy Guy'", class: "Euclid", desc: "A humanoid creature measuring approximately 2.38 meters in height." },
+      { id: "682", title: "Hard-to-Destroy Reptile", class: "Keter", desc: "Large, vaguely reptile-like creature of unknown origin." },
+      { id: "914", title: "The Clockworks", class: "Safe", desc: "A large device weighing several tons and covering an area of eighteen square meters." }
+    ];
+
+    let state = {
+      clearance: 0,
+      user: "GUEST_RESEARCHER",
+      currentView: 'terminal'
+    };
+
+    // --- Core Logic ---
+    function init() {
+      lucide.createIcons();
+      updateClock();
+      updateTelemetry();
+      renderDatabase();
+      addTerminalLine("SCiPNET KERNEL 4.0.2 LOADING...");
+      addTerminalLine("Establishing secure link to Site-45...");
+      setTimeout(() => addTerminalLine("Welcome, unauthorized user. Enter 'login' or 'help'."), 1000);
+      
+      setInterval(updateClock, 1000);
+      setInterval(updateTelemetry, 3000);
+      setInterval(addLiveLog, 5000);
+    }
+
+    function switchView(viewId) {
+      // Update Buttons
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('border-primary', 'text-primary', 'bg-primary/5');
+        btn.classList.add('border-transparent');
+      });
+      document.getElementById('btn-' + viewId).classList.add('border-primary', 'text-primary', 'bg-primary/5');
+      document.getElementById('btn-' + viewId).classList.remove('border-transparent');
+
+      // Update View
+      document.querySelectorAll('.view-content').forEach(v => v.classList.remove('active'));
+      document.getElementById('view-' + viewId).classList.add('active');
+      state.currentView = viewId;
+      addLiveLog(`VIEW_CHANGED: ${viewId.toUpperCase()}`);
+    }
+
+    // --- Terminal Logic ---
+    const termInput = document.getElementById('terminal-input');
+    const termOutput = document.getElementById('terminal-output');
+
+    termInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const cmd = termInput.value.trim().toLowerCase();
+        termInput.value = '';
+        addTerminalLine(`<span class="text-gray-500">RES@SCIPNET:~$</span> ${cmd}`);
+        handleCommand(cmd);
+      }
+    });
+
+    function addTerminalLine(text) {
+      const line = document.createElement('div');
+      line.innerHTML = text;
+      termOutput.appendChild(line);
+      termOutput.scrollTop = termOutput.scrollHeight;
+    }
+
+    function handleCommand(cmd) {
+      if (cmd === 'help') {
+        addTerminalLine("Available: [login, logout, clear, status, access {id}]");
+      } else if (cmd === 'clear') {
+        termOutput.innerHTML = '';
+      } else if (cmd === 'login') {
+        state.clearance = 4;
+        state.user = "O5_ADMINISTRATOR";
+        updateAuthUI();
+        addTerminalLine("<span class="text-success">ACCESS GRANTED. Welcome, O5.</span>");
+      } else if (cmd === 'logout') {
+        logout();
+      } else if (cmd.startsWith('access')) {
+        const id = cmd.split(' ')[1];
+        const item = scpDatabase.find(s => s.id === id);
+        if (item) {
+          addTerminalLine(`<span class="text-accent">SCP-${item.id} - ${item.title}</span>`);
+          addTerminalLine(`Class: ${item.class}`);
+          addTerminalLine(item.desc);
+        } else {
+          addTerminalLine("<span class="text-danger">ERROR: Record not found.</span>");
+        }
+      } else {
+        addTerminalLine(`Unknown command: ${cmd}`);
+      }
+    }
+
+    // --- UI Updates ---
+    function updateAuthUI() {
+      document.getElementById('sb-status').innerText = state.clearance > 0 ? "AUTHORIZED" : "UNAUTHORIZED";
+      document.getElementById('sb-status').className = state.clearance > 0 ? "text-lg font-display text-success" : "text-lg font-display text-gray-500";
+      document.getElementById('sb-user').innerText = state.user;
+      document.getElementById('auth-bar').style.width = state.clearance > 0 ? "100%" : "20%";
+      document.getElementById('auth-bar').className = state.clearance > 0 ? "h-full bg-success w-full transition-all" : "h-full bg-gray-600 w-1/5 transition-all";
+    }
+
+    function logout() {
+      state.clearance = 0;
+      state.user = "GUEST_RESEARCHER";
+      updateAuthUI();
+      switchView('terminal');
+      termOutput.innerHTML = '';
+      addTerminalLine("Session terminated. Reconnecting...");
+    }
+
+    function updateClock() {
+      document.getElementById('header-clock').innerText = new Date().toLocaleTimeString();
+    }
+
+    function updateTelemetry() {
+      const cpu = Math.floor(Math.random() * 40) + 10;
+      const hume = (0.95 + Math.random() * 0.1).toFixed(2);
+      document.getElementById('cpu-val').innerText = cpu + "%";
+      document.getElementById('cpu-bar').style.width = cpu + "%";
+      document.getElementById('hume-val').innerText = hume;
+      document.getElementById('hume-bar').style.width = (hume * 50) + "%";
+    }
+
+    function addLiveLog(msg = "PACKET_RECEIVED") {
+      const logs = document.getElementById('side-logs');
+      const line = document.createElement('div');
+      line.innerText = `> ${msg}_${Math.random().toString(36).substring(7).toUpperCase()}`;
+      logs.prepend(line);
+      if (logs.childNodes.length > 10) logs.removeChild(logs.lastChild);
+    }
+
+    function renderDatabase() {
+      const container = document.getElementById('db-list');
+      container.innerHTML = scpDatabase.map(scp => `
+        <div class="border border-border p-4 bg-neutral-900/40 hover:border-primary/50 cursor-pointer transition-all group">
+          <div class="flex justify-between items-start mb-2">
+            <span class="text-xs font-bold text-primary">SCP-${scp.id}</span>
+            <span class="text-[10px] px-1 border border-primary/30 text-gray-500">${scp.class.toUpperCase()}</span>
+          </div>
+          <h4 class="text-sm text-white group-hover:text-primary transition-colors">${scp.title}</h4>
+        </div>
+      `).join('');
+    }
+
+    // Search functionality
+    document.getElementById('db-search').addEventListener('input', (e) => {
+      const term = e.target.value.toLowerCase();
+      const cards = document.querySelectorAll('#db-list > div');
+      cards.forEach((card, idx) => {
+        const data = scpDatabase[idx];
+        card.style.display = (data.id.includes(term) || data.title.toLowerCase().includes(term)) ? 'block' : 'none';
+      });
+    });
+
+    window.onload = init;
+  </script>
+</body>
+</html>
